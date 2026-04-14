@@ -143,7 +143,7 @@ def download_trading_data(symbol: str, start: str, end: str) -> pd.DataFrame:
 # ── Quant logic ────────────────────────────────────────────────────────────────
 
 def calculate_regimes(data: pd.DataFrame) -> pd.DataFrame:
-    r = data.copy(deep=True)
+    r = data.copy()
 
     r["SPX_SMA"]      = r["SPX"].rolling(200).mean()
     r["SPX_Dist_SMA"] = r["SPX"] - r["SPX_SMA"]
@@ -169,7 +169,7 @@ def calculate_regimes(data: pd.DataFrame) -> pd.DataFrame:
 
 
 def generate_signals(regime_data: pd.DataFrame) -> pd.DataFrame:
-    signals = regime_data[["Regime"]].copy(deep=True)
+    signals = regime_data[["Regime"]].copy()
     signals["year"]      = signals.index.isocalendar().year
     signals["month"]     = signals.index.month
     signals["dayofweek"] = signals.index.dayofweek
@@ -408,7 +408,7 @@ def plot_cumulative_returns(bt: pd.DataFrame, bench: pd.DataFrame,
 
 
 def plot_spy_sma(trading_data: pd.DataFrame) -> go.Figure:
-    d = trading_data.copy(deep=True)
+    d = trading_data.copy()
     d["SMA200"] = d["Close"].rolling(200).mean()
 
     fig = go.Figure()
@@ -519,9 +519,10 @@ with st.sidebar:
 
     col_s, col_e = st.columns(2)
     with col_s:
-        start_date = st.date_input("Start", value=datetime.date(2007, 1, 1))
+        start_date = st.date_input("Start", value=datetime.date(2007, 4, 12),
+                                   min_value=datetime.date(2000, 1, 1))
     with col_e:
-        end_date = st.date_input("End", value=datetime.date(2026, 4, 15))
+        end_date = st.date_input("End", value=datetime.date(2025, 12, 31))
 
     st.markdown("---")
     st.markdown("#### Signals")
@@ -562,7 +563,7 @@ if run_btn or "bt" not in st.session_state:
 
     with st.spinner("Calculating regimes…"):
         # Recalculate with custom parameters
-        r = regime_data.copy(deep=True)
+        r = regime_data.copy()
         r["SPX_SMA"]      = r["SPX"].rolling(sma_window).mean()
         r["SPX_Dist_SMA"] = r["SPX"] - r["SPX_SMA"]
         r["Signal_1"]     = np.where(r["SPX_Dist_SMA"] > 0, 1, 0)
@@ -678,8 +679,9 @@ with tab2:
         st.plotly_chart(fig_credit, use_container_width=True)
 
         # Signal agreement heatmap (monthly)
-        print(f"Columns\n{signals.columns}")
-        sig_monthly = signals[["Signal_1","Signal_2","Signal_3","Regime"]].copy(deep=True)
+        # Signal_1/2/3 live in the regime df, not signals df — join on index
+        sig_monthly = regime[["Signal_1","Signal_2","Signal_3"]].copy()
+        sig_monthly = sig_monthly.reindex(signals.index)  # align to trading days
         sig_monthly["month"] = sig_monthly.index.to_period("M")
         agg = sig_monthly.groupby("month")[["Signal_1","Signal_2","Signal_3"]].mean()
 
@@ -719,8 +721,10 @@ with tab3:
     )
 
     st.subheader("Regime Signals")
-    sig_show = signals[["Regime", "Signal_1", "Signal_2", "Signal_3",
-                          "WeeklySignal", "PositionChange"]].tail(60)
+    sig_show = signals[["Regime", "WeeklySignal", "PositionChange"]].copy()
+    sig_show = sig_show.join(regime[["Signal_1", "Signal_2", "Signal_3"]], how="left")
+    sig_show = sig_show[["Signal_1", "Signal_2", "Signal_3",
+                          "Regime", "WeeklySignal", "PositionChange"]].tail(60)
     st.dataframe(sig_show, use_container_width=True)
 
 st.markdown("""
