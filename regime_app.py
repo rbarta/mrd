@@ -519,7 +519,7 @@ with st.sidebar:
 
     col_s, col_e = st.columns(2)
     with col_s:
-        start_date = st.date_input("Start", value=datetime.date(2020, 1, 1))
+        start_date = st.date_input("Start", value=datetime.date(2007, 1, 1))
     with col_e:
         end_date = st.date_input("End", value=datetime.date(2026, 4, 15))
 
